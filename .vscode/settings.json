@@ -1,3 +1,11 @@
 {
-    "deno.enable": true
+  "deno.enable": true,
+  "deno.enablePaths": [
+    "order-request-system/supabase/functions"
+  ],
+  "deno.unstable": true,
+  "deno.suggest.imports.hosts": {
+    "https://deno.land": true,
+    "https://esm.sh": true
+  }
 }
