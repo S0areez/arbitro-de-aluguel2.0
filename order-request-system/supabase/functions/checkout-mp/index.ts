@@ -41,6 +41,8 @@ serve(async (req: Request) => {
     if (!MP_TOKEN) {
       throw new Error("Configuração do servidor pendente (Token MP).");
     }
+    const token = "APP_USR-1285414236511355-031209-aa88a89e5d6b43b106cf09aeed981b97-3260578791";
+ parent of c2702d6 (Exclusao de GPS/Alteracao de valor fixo)
 
     const mpBody = {
       items: [
@@ -62,6 +64,15 @@ serve(async (req: Request) => {
         pending: "https://arbitro-de-aluguel2-0.vercel.app/carteira"
       },
       auto_return: "approved",
+        // Tente usar uma URL que o MP aceite melhor, 
+        // ou coloque a URL final do seu projeto se já tiver feito deploy (Vercel/Netlify)
+        success: "http://localhost:8080/carteira",
+        failure: "http://localhost:8080/carteira",
+        pending: "http://localhost:8080/carteira"
+      },
+      // DESATIVE ESTA LINHA ABAIXO para parar o erro 400
+      // auto_return: "approved", 
+ parent of c2702d6 (Exclusao de GPS/Alteracao de valor fixo)
       external_reference: String(reservaId),
     };
 

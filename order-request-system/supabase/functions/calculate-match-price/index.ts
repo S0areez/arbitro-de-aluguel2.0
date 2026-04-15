@@ -21,42 +21,12 @@ interface MatchData {
   matchDifficulty: 'amistoso' | 'campeonato' | 'final';
 }
 
->>>>>>> parent of c2702d6 (Exclusao de GPS/Alteracao de valor fixo)
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-<<<<<<< HEAD
-    const { refereeId, matchLocation, matchDifficulty }: MatchData = await req.json()
-
-    // Lógica de cálculo do preço (placeholder)
-    const basePrice = 50; // Valor base para qualquer partida
-    let finalPrice = basePrice;
-
-    // Exemplo de lógica de negócio
-    // 1. Adicional por dificuldade
-    const difficultyMultiplier = {
-      amistoso: 1.0,
-      campeonato: 1.2,
-      final: 1.5,
-    };
-    finalPrice *= difficultyMultiplier[matchDifficulty];
-
-    // 2. Lógica de distância (a ser implementada com Google Matrix API)
-    // Por enquanto, um valor fixo para simular
-    const distanceCost = 15; // Custo simbólico de deslocamento
-    finalPrice += distanceCost;
-
-    // 3. Multiplicador por nível do árbitro (a ser buscado do DB)
-    // Placeholder
-    const refereeLevelMultiplier = 1.1; // Simula um árbitro de nível mais alto
-    finalPrice *= refereeLevelMultiplier;
-
-    return new Response(
-      JSON.stringify({ price: finalPrice.toFixed(2) }),
-=======
     const { refereeId, matchDifficulty }: MatchData = await req.json()
 
     // 1. Inicializar cliente Supabase com a Service Role Key para ignorar RLS se necessário

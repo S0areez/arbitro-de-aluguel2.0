@@ -2,7 +2,10 @@ import { Database } from "@/types/database.types";
 
 type Status = Database["public"]["Tables"]["matches"]["Row"]["status"];
 
+ HEAD
 const statusConfig: Record<string, { label: string; className: string }> = {
+
+const statusConfig: Record<Status, { label: string; className: string }> = {
   pendente: { label: "Pendente", className: "bg-primary/20 text-primary border-primary/40" },
   aceita: { label: "Aceita", className: "bg-success/20 text-success border-success/40" },
   a_caminho: { label: "A caminho", className: "bg-blue-500/20 text-blue-400 border-blue-500/40" },
