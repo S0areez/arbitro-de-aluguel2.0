@@ -17,7 +17,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 type PaymentMethod = Database["public"]["Tables"]["matches"]["Row"]["payment_method"];
 
-// Definição de interface para evitar o uso de 'any'
 interface MatchInsertResponse {
   id: string;
 }

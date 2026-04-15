@@ -13,8 +13,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-<<<<<<< HEAD
-=======
+
 interface MatchData {
   refereeId: string;
   matchLocation?: { lat: number; lon: number };
@@ -88,7 +87,6 @@ serve(async (req) => {
           subtotal: subtotal.toFixed(2)
         }
       }),
->>>>>>> parent of c2702d6 (Exclusao de GPS/Alteracao de valor fixo)
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
