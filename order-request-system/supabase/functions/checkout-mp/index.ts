@@ -1,81 +1,104 @@
-// @ts-ignore
+// cspell:ignore reserva, arbitro, aluguel, init, unit, unit_price
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+interface CheckoutRequestBody {
+  amount: number | string;
+  reservaId: string | number;
 }
 
-serve(async (req: any) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+interface MercadoPagoPreference {
+  init_point: string;
+  message?: string;
+  [key: string]: unknown;
+}
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+serve(async (req: Request) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: CORS_HEADERS });
+  }
 
   try {
-    const { amount, reservaId } = await req.json();
-    
-    // Validando dados de entrada
+    const { amount, reservaId }: CheckoutRequestBody = await req.json();
+
+    // Validação rigorosa
     if (!amount || isNaN(Number(amount))) {
-      throw new Error("O valor (amount) é inválido ou está faltando.");
+      throw new Error("Valor (amount) inválido.");
+    }
+    if (!reservaId) {
+      throw new Error("ID da reserva é obrigatório.");
     }
 
-    const token = "APP_USR-1285414236511355-031209-aa88a89e5d6b43b106cf09aeed981b97-3260578791";
+    // NUNCA deixe tokens expostos no código. 
+    // Configure isso no dashboard do Supabase em Edge Functions > Secrets
+    const MP_TOKEN = Deno.env.get("MP_ACCESS_TOKEN"); 
+
+    if (!MP_TOKEN) {
+      throw new Error("Configuração do servidor pendente (Token MP).");
+    }
 
     const mpBody = {
       items: [
         {
           id: String(reservaId),
-          title: "Reserva de Arbitro - Arbitro de Aluguel",
+          title: "Reserva - Árbitro de Aluguel",
           quantity: 1,
           unit_price: Number(Number(amount).toFixed(2)),
           currency_id: "BRL",
         }
       ],
       payer: {
-        email: "test_user_123@testuser.com" 
+        email: "comprador@exemplo.com" // Em produção, receba o e-mail do usuário logado
       },
       back_urls: {
-        // Tente usar uma URL que o MP aceite melhor, 
-        // ou coloque a URL final do seu projeto se já tiver feito deploy (Vercel/Netlify)
-        success: "http://localhost:8080/carteira",
-        failure: "http://localhost:8080/carteira",
-        pending: "http://localhost:8080/carteira"
+        // Altere para a URL da Vercel em produção
+        success: "https://arbitro-de-aluguel2-0.vercel.app/carteira",
+        failure: "https://arbitro-de-aluguel2-0.vercel.app/carteira",
+        pending: "https://arbitro-de-aluguel2-0.vercel.app/carteira"
       },
-      // DESATIVE ESTA LINHA ABAIXO para parar o erro 400
-      // auto_return: "approved", 
+      auto_return: "approved",
       external_reference: String(reservaId),
     };
 
     const response = await fetch("https://api.mercadopago.com/checkout/preferences", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${token}`,
+        "Authorization": `Bearer ${MP_TOKEN}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify(mpBody),
     });
 
-    const data = await response.json();
+    const data: MercadoPagoPreference = await response.json();
 
     if (!response.ok) {
-      console.error("ERRO DETALHADO DO MP:", data);
-      return new Response(
-        JSON.stringify({ 
-          error: data.message || "Erro na API do Mercado Pago",
-          details: data 
-        }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
-      );
+      console.error("Erro MP API:", data);
+      throw new Error(data.message || "Falha na comunicação com Mercado Pago");
     }
 
     return new Response(
       JSON.stringify({ checkoutUrl: data.init_point }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
+      { 
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" }, 
+        status: 200 
+      }
     );
 
-  } catch (error: any) {
-    console.error("ERRO NA FUNCTION:", error.message);
+  } catch (err: unknown) {
+    const error = err as Error;
+    console.error("EDGE FUNCTION ERROR:", error.message);
+    
     return new Response(
       JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+      { 
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" }, 
+        status: 400 
+      }
     );
   }
-})
+});
