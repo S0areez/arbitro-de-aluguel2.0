@@ -50,7 +50,7 @@ const PerfilArbitro = () => {
 
         {/* Profile */}
         <div className="flex flex-col items-center text-center">
-          <img src={arbitro.avatar_url || "https://github.com/shadcn.png"} alt={arbitro.full_name || "Árbitro"} className="h-24 w-24 rounded-full border-4 border-primary/30 bg-muted" />
+          <img src={arbitro.avatar_url || "/assets/default-avatar.png"} alt={arbitro.full_name || "Árbitro"} className="h-24 w-24 rounded-full border-4 border-primary/30 bg-muted" />
           <h1 className="font-display text-xl font-bold text-foreground mt-3">{arbitro.full_name}</h1>
           <div className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
             <MapPin size={14} />
@@ -123,7 +123,7 @@ const PerfilArbitro = () => {
             onClick={() => navigate(`/checkout/${arbitro.id}`)}
             className="w-full h-12 text-base font-bold rounded-xl"
           >
-            Contratar — R$ {arbitro.hourly_rate}/h
+            Contratar Árbitro
           </Button>
         </div>
       </div>

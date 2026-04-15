@@ -16,8 +16,6 @@ const SeedData = () => {
 
     const referees = [
       { name: "Carlos Silva", city: "São Paulo", rate: 150, modalities: ["futebol", "society"], email: `carlos.${Date.now()}@teste.com` },
-      { name: "Roberto Juiz", city: "Rio de Janeiro", rate: 100, modalities: ["futsal"], email: `roberto.${Date.now()}@teste.com` },
-      { name: "Ana Apito", city: "Curitiba", rate: 120, modalities: ["society"], email: `ana.${Date.now()}@teste.com` },
       { name: "Marcos Whistle", city: "São Paulo", rate: 200, modalities: ["futebol"], email: `marcos.${Date.now()}@teste.com` },
       { name: "Julia Campo", city: "Belo Horizonte", rate: 130, modalities: ["futebol", "futsal"], email: `julia.${Date.now()}@teste.com` },
     ];

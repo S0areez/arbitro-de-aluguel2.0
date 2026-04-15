@@ -28,12 +28,6 @@ const ModoPartidaContratante = () => {
   const [comentario, setComentario] = useState("");
   const [elapsedString, setElapsedString] = useState("00:00:00");
   const [isOvertime, setIsOvertime] = useState(false);
-  const [shareGps, setShareGps] = useState(false);
-  const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [peerLocation, setPeerLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [watchId, setWatchId] = useState<number | null>(null);
-  const [manualLat, setManualLat] = useState<string>("");
-  const [manualLng, setManualLng] = useState<string>("");
   const isContractor = !!(user?.id && match?.contractor_id && user.id === match.contractor_id);
   const isReferee = !!(user?.id && match?.referee_id && user.id === match.referee_id);
 
@@ -70,105 +64,6 @@ const ModoPartidaContratante = () => {
 
     return () => clearInterval(interval);
   }, [match, isOvertime]);
-
-  useEffect(() => {
-    if (!match || !id) return;
-    const channel = supabase.channel(`match:${id}`, { config: { broadcast: { self: true } } });
-    channel.on('broadcast', { event: 'location' }, (payload: any) => {
-      const sameRole = (isReferee && payload?.payload?.role === 'arbitro') || (isContractor && payload?.payload?.role === 'contratante');
-      if (sameRole) return;
-      const { lat, lng } = payload?.payload || {};
-      if (typeof lat === 'number' && typeof lng === 'number') {
-        setPeerLocation({ lat, lng });
-      }
-    });
-    channel.subscribe();
-    return () => {
-      channel.unsubscribe();
-    };
-  }, [id, match, isReferee, isContractor]);
-
-  useEffect(() => {
-    const handleGeoError = (err: GeolocationPositionError) => {
-      if (err.code === 1) {
-        toast.error("Permita o acesso à localização nas configurações do navegador.");
-      } else if (err.code === 2) {
-        toast.error("Sinal de localização indisponível no momento.");
-      } else if (err.code === 3) {
-        toast.error("Tempo excedido ao obter a localização.");
-      } else {
-        toast.error("Não foi possível obter a localização.");
-      }
-      setShareGps(false);
-    };
-    const startWatch = () => {
-      const idWatch = navigator.geolocation.watchPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          setMyLocation({ lat, lng });
-          supabase.channel(`match:${id}`).send({
-            type: 'broadcast',
-            event: 'location',
-            payload: { role: isReferee ? 'arbitro' : 'contratante', lat, lng, ts: Date.now() }
-          });
-        },
-        handleGeoError,
-        { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
-      );
-      setWatchId(idWatch);
-    };
-    if (!shareGps) {
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-        setWatchId(null);
-      }
-      return;
-    }
-    if (!window.isSecureContext) {
-      toast.error("GPS exige HTTPS ou localhost. Acesse via túnel HTTPS ou localhost.");
-      setShareGps(false);
-      return;
-    }
-    if (!('geolocation' in navigator)) {
-      toast.error("Seu dispositivo não suporta GPS.");
-      setShareGps(false);
-      return;
-    }
-    const checkPermissionAndStart = async () => {
-      try {
-        // @ts-ignore
-        if (navigator.permissions && navigator.permissions.query) {
-          // @ts-ignore
-          const p = await navigator.permissions.query({ name: 'geolocation' });
-          if (p.state === 'denied') {
-            toast.error("Permita a localização para compartilhar sua posição.");
-            setShareGps(false);
-            return;
-          }
-        }
-      } catch {}
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          setMyLocation({ lat, lng });
-          supabase.channel(`match:${id}`).send({
-            type: 'broadcast',
-            event: 'location',
-            payload: { role: isReferee ? 'arbitro' : 'contratante', lat, lng, ts: Date.now() }
-          });
-          startWatch();
-        },
-        handleGeoError,
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    };
-    checkPermissionAndStart();
-    return () => {
-      if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-    };
-  }, [shareGps, id, isReferee, watchId]);
   if (isLoading) {
     return (
       <MobileLayout showNav={false}>
@@ -190,7 +85,7 @@ const ModoPartidaContratante = () => {
     );
   }
 
-  const statusFlow: MatchStatus[] = ["aceita", "a_caminho", "em_andamento", "finalizada"];
+  const statusFlow: MatchStatus[] = ["confirmed", "ready", "in_progress", "completed"];
   const currentIndex = statusFlow.indexOf(match.status);
 
   // Handlers
@@ -226,18 +121,17 @@ const ModoPartidaContratante = () => {
   };
 
   const handleAdvanceStatus = async () => {
-      if (currentIndex < statusFlow.length - 1) {
-          const nextStatus = statusFlow[currentIndex + 1];
-          
-          if (nextStatus === 'finalizada') {
-              // Quando o árbitro finaliza, chama a mesma lógica de liberação (ou apenas atualiza status e deixa o contratante confirmar)
-              // Neste caso, vamos apenas atualizar o status e deixar o pagamento ser processado pela Edge Function se possível
-              // OU, se você quiser que o árbitro também dispare o pagamento:
-              try {
-                  await supabase.functions.invoke('finish-match', { body: { match_id: match.id } });
-              } catch (e) { console.error(e); }
-          }
-          updateMatch.mutate({ id: match.id, updates: { status: nextStatus } });
+      if (match.status === 'confirmed') {
+          updateMatch.mutate({ id: match.id, updates: { status: 'ready' } });
+          return;
+      }
+      if (match.status === 'ready') {
+          updateMatch.mutate({ id: match.id, updates: { status: 'in_progress' } });
+          return;
+      }
+      if (match.status === 'in_progress') {
+          updateMatch.mutate({ id: match.id, updates: { status: 'completed' } });
+          return;
       }
   };
 
@@ -268,7 +162,7 @@ const ModoPartidaContratante = () => {
          // Tenta aprovar o pagamento localmente (pode falhar por RLS, mas tentamos)
          // await supabase.from('payments').update({ status: 'approved' }).eq('reserva_id', match.id); // REMOVIDO PARA EVITAR ERRO DE RLS NO CONSOLE
 
-         updateMatch.mutate({ id: match.id, updates: { status: 'finalizada' } }, {
+         updateMatch.mutate({ id: match.id, updates: { status: 'completed' } }, {
              onSuccess: () => toast.success("Status atualizado (Atenção: Transação financeira requer Edge Function ativa)"),
              onError: () => toast.error("Falha ao finalizar partida.")
          });
@@ -278,57 +172,6 @@ const ModoPartidaContratante = () => {
   const openMaps = () => {
       const query = encodeURIComponent(match.location);
       window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
-  };
-  const openRouteToPeer = () => {
-      if (!peerLocation) return;
-      const dest = `${peerLocation.lat},${peerLocation.lng}`;
-      const origin = myLocation ? `${myLocation.lat},${myLocation.lng}` : undefined;
-      const url = origin 
-        ? `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}`
-        : `https://www.google.com/maps/search/?api=1&query=${dest}`;
-      window.open(url, '_blank');
-  };
-  const distanceKm = () => {
-      if (!myLocation || !peerLocation) return null;
-      const toRad = (v: number) => v * Math.PI / 180;
-      const R = 6371;
-      const dLat = toRad(peerLocation.lat - myLocation.lat);
-      const dLng = toRad(peerLocation.lng - myLocation.lng);
-      const a = Math.sin(dLat/2)**2 + Math.cos(toRad(myLocation.lat)) * Math.cos(toRad(peerLocation.lat)) * Math.sin(dLng/2)**2;
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      return (R * c);
-  };
-
-  const MiniMap = ({ center, my, peer, zoom = 15 }: { center?: { lat: number; lng: number } | null; my?: { lat: number; lng: number } | null; peer?: { lat: number; lng: number } | null; zoom?: number }) => {
-      const c = center || peer || my;
-      if (!c) return <div className="text-xs text-muted-foreground">Localização indisponível</div>;
-      const size = "256x256";
-      const params = new URLSearchParams();
-      params.set("center", `${c.lat},${c.lng}`);
-      params.set("zoom", `${zoom}`);
-      params.set("size", size);
-      if (peer) params.append("markers", `${peer.lat},${peer.lng},red`);
-      if (my) params.append("markers", `${my.lat},${my.lng},lightblue1`);
-      const url = `https://staticmap.openstreetmap.de/staticmap.php?${params.toString()}`;
-      return (
-        <div className="relative w-[256px] h-[256px] rounded-lg overflow-hidden border border-border">
-            <img src={url} alt="map" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-        </div>
-      );
-  };
-  const setManualLocation = () => {
-      const lat = parseFloat(manualLat);
-      const lng = parseFloat(manualLng);
-      if (Number.isNaN(lat) || Number.isNaN(lng)) {
-        toast.error("Informe coordenadas válidas (lat, lng).");
-        return;
-      }
-      setMyLocation({ lat, lng });
-      supabase.channel(`match:${id}`).send({
-        type: 'broadcast',
-        event: 'location',
-        payload: { role: isReferee ? 'arbitro' : 'contratante', lat, lng, ts: Date.now() }
-      });
   };
 
   // --- VIEWS ---
@@ -351,23 +194,23 @@ const ModoPartidaContratante = () => {
                  <Button variant="outline" size="sm" className="flex-1 gap-2" onClick={openMaps}>
                     <Navigation size={16} /> Navegar
                  </Button>
-                 {match.status !== 'finalizada' && (
+                 {match.status !== 'completed' && match.status !== 'waiting_payment' && match.status !== 'pending' && (
                     <Button 
                         size="sm" 
                         className="flex-1 gap-2 bg-primary text-primary-foreground hover:bg-primary/90"
                         onClick={handleAdvanceStatus}
                         disabled={updateMatch.isPending}
                     >
-                        {match.status === 'aceita' && "Estou a Caminho"}
-                        {match.status === 'a_caminho' && "Iniciar Partida"}
-                        {match.status === 'em_andamento' && "Finalizar Partida"}
+                        {match.status === 'confirmed' && "Aceitar Partida"}
+                        {match.status === 'ready' && "Iniciar Partida"}
+                        {match.status === 'in_progress' && "Finalizar Partida"}
                     </Button>
                  )}
             </div>
         </div>
 
         {/* Timer & Check-in */}
-        {match.status === 'em_andamento' && (
+{match.status === 'in_progress' && (
              <div className={`rounded-xl border p-6 text-center space-y-2 ${isOvertime ? "border-destructive bg-destructive/10" : "border-primary/20 bg-primary/5"}`}>
                 <div className="text-5xl font-mono font-bold tracking-tight">{elapsedString}</div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wider">Tempo Decorrido</p>
@@ -399,8 +242,8 @@ const ModoPartidaContratante = () => {
                     <p className="text-lg font-bold">R$ {(match.price - (match.platform_fee || 0)).toFixed(2)}</p>
                 </div>
             </div>
-            <span className={`text-[10px] font-bold px-2 py-1 rounded ${match.status === 'finalizada' ? 'bg-success text-success-foreground' : 'bg-yellow-500/20 text-yellow-500'}`}>
-                {match.status === 'finalizada' ? 'Pago/Processado' : 'Será liberado ao finalizar'}
+            <span className={`text-[10px] font-bold px-2 py-1 rounded ${match.status === 'completed' ? 'bg-success text-success-foreground' : 'bg-yellow-500/20 text-yellow-500'}`}>
+                {match.status === 'completed' ? 'Pago/Processado' : 'Será liberado ao finalizar'}
             </span>
         </div>
 
@@ -419,44 +262,6 @@ const ModoPartidaContratante = () => {
                 </Button>
             </div>
         )}
-        <div className="p-4 border rounded-xl space-y-3">
-            <h4 className="font-semibold text-sm">Localização em tempo real</h4>
-            <div className="flex items-center gap-2">
-                <Button size="sm" variant={shareGps ? "secondary" : "outline"} onClick={() => setShareGps(!shareGps)}>
-                    {shareGps ? "GPS Ativado" : "Ativar GPS"}
-                </Button>
-                <Button size="sm" onClick={openRouteToPeer} disabled={!peerLocation}>
-                    Ver rota até contratante
-                </Button>
-            </div>
-            <div className="text-xs text-muted-foreground">
-                {myLocation ? `Você: ${myLocation.lat.toFixed(4)}, ${myLocation.lng.toFixed(4)}` : "Sua localização: indisponível"}
-            </div>
-            <div className="text-xs text-muted-foreground">
-                {peerLocation ? `Contratante: ${peerLocation.lat.toFixed(4)}, ${peerLocation.lng.toFixed(4)}` : "Contratante: aguardando"}
-            </div>
-            {distanceKm() && (
-                <div className="text-xs font-medium">Distância aproximada: {distanceKm()!.toFixed(2)} km</div>
-            )}
-            <MiniMap center={peerLocation || myLocation} my={myLocation} peer={peerLocation} />
-            <div className="grid grid-cols-3 gap-2 mt-3">
-                <input 
-                  value={manualLat}
-                  onChange={(e) => setManualLat(e.target.value)}
-                  placeholder="Lat"
-                  className="col-span-1 rounded-md border bg-background px-2 py-1 text-xs"
-                />
-                <input 
-                  value={manualLng}
-                  onChange={(e) => setManualLng(e.target.value)}
-                  placeholder="Lng"
-                  className="col-span-1 rounded-md border bg-background px-2 py-1 text-xs"
-                />
-                <Button size="sm" variant="outline" onClick={setManualLocation} className="col-span-1">
-                  Usar localização manual
-                </Button>
-            </div>
-        </div>
     </div>
   );
 
@@ -467,21 +272,21 @@ const ModoPartidaContratante = () => {
              <div className="absolute top-0 left-0 w-full h-1 bg-secondary overflow-hidden">
                  <div 
                     className="h-full bg-primary transition-all duration-500"
-                    style={{ width: `${((currentIndex + 1) / statusFlow.length) * 100}%` }}
+                    style={{ width: `${Math.max(0, Math.min(100, ((currentIndex + 1) / statusFlow.length) * 100))}%` }}
                  />
              </div>
              <div className="text-center space-y-1">
                  <h2 className="text-xl font-bold text-foreground">
-                    {match.status === 'aceita' && "Árbitro Aceitou"}
-                    {match.status === 'a_caminho' && "Árbitro a Caminho"}
-                    {match.status === 'em_andamento' && "Partida em Andamento"}
-                    {match.status === 'finalizada' && "Partida Finalizada"}
+                    {match.status === 'confirmed' && "Partida confirmada"}
+                    {match.status === 'ready' && "Árbitro pronto para o jogo"}
+                    {match.status === 'in_progress' && "Partida em andamento"}
+                    {match.status === 'completed' && "Partida concluída"}
                  </h2>
                  <p className="text-sm text-muted-foreground">
-                    {match.status === 'aceita' && "Aguarde o deslocamento."}
-                    {match.status === 'a_caminho' && "Ele deve chegar em breve."}
-                    {match.status === 'em_andamento' && "Acompanhe o tempo abaixo."}
-                    {match.status === 'finalizada' && "Avalie o serviço."}
+                    {match.status === 'confirmed' && "Aguarde o aceite do árbitro."}
+                    {match.status === 'ready' && "O árbitro já aceitou. Faça o check-in e comece a partida."}
+                    {match.status === 'in_progress' && "Acompanhe o desenvolvimento do jogo."}
+                    {match.status === 'completed' && "Deixe sua avaliação."}
                  </p>
              </div>
         </div>
@@ -507,7 +312,7 @@ const ModoPartidaContratante = () => {
         )}
 
         {/* Timer (Read Only) */}
-        {match.status === 'em_andamento' && (
+        {match.status === 'in_progress' && (
              <div className="flex flex-col items-center justify-center py-6 border-y border-dashed border-border">
                  <div className="text-4xl font-mono font-bold text-foreground">{elapsedString}</div>
                  {isOvertime && <span className="text-xs text-destructive font-bold">TEMPO EXCEDIDO</span>}
@@ -530,7 +335,7 @@ const ModoPartidaContratante = () => {
              </Button>
         </div>
 
-        {match.status === 'em_andamento' && (
+        {match.status === 'in_progress' && (
              <Button 
                 onClick={handleFinalizarPartida}
                 className="w-full bg-success hover:bg-success/90 text-success-foreground font-bold"
@@ -538,47 +343,8 @@ const ModoPartidaContratante = () => {
                  <CheckCircle2 className="mr-2" /> Finalizar Partida e Liberar Pagamento
              </Button>
         )}
-
-        <div className="p-4 border rounded-xl space-y-3">
-            <h4 className="font-semibold text-sm">Localização do árbitro</h4>
-            <div className="flex items-center gap-2">
-                <Button size="sm" variant={shareGps ? "secondary" : "outline"} onClick={() => setShareGps(!shareGps)}>
-                    {shareGps ? "Compartilhar minha localização" : "Compartilhar minha localização"}
-                </Button>
-                <Button size="sm" onClick={openRouteToPeer} disabled={!peerLocation}>
-                    Ver rota até árbitro
-                </Button>
-            </div>
-            <div className="text-xs text-muted-foreground">
-                {myLocation ? `Você: ${myLocation.lat.toFixed(4)}, ${myLocation.lng.toFixed(4)}` : "Sua localização: desativada"}
-            </div>
-            <div className="text-xs text-muted-foreground">
-                {peerLocation ? `Árbitro: ${peerLocation.lat.toFixed(4)}, ${peerLocation.lng.toFixed(4)}` : "Árbitro: aguardando"}
-            </div>
-            {distanceKm() && (
-                <div className="text-xs font-medium">Distância aproximada: {distanceKm()!.toFixed(2)} km</div>
-            )}
-            <MiniMap center={peerLocation || myLocation} my={myLocation} peer={peerLocation} />
-            <div className="grid grid-cols-3 gap-2 mt-3">
-                <input 
-                  value={manualLat}
-                  onChange={(e) => setManualLat(e.target.value)}
-                  placeholder="Lat"
-                  className="col-span-1 rounded-md border bg-background px-2 py-1 text-xs"
-                />
-                <input 
-                  value={manualLng}
-                  onChange={(e) => setManualLng(e.target.value)}
-                  placeholder="Lng"
-                  className="col-span-1 rounded-md border bg-background px-2 py-1 text-xs"
-                />
-                <Button size="sm" variant="outline" onClick={setManualLocation} className="col-span-1">
-                  Usar localização manual
-                </Button>
-            </div>
-        </div>
         {/* Rating Section */}
-        {match.status === 'finalizada' && (
+        {match.status === 'completed' && (
           <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-4 animate-in fade-in slide-in-from-bottom-4">
             <h3 className="font-display text-sm font-semibold text-foreground text-center">Como foi a arbitragem?</h3>
             <h3 className="font-display text-sm font-semibold text-foreground text-center">Como foi a arbitragem?</h3>

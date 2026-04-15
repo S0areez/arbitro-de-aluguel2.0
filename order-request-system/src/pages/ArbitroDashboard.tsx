@@ -27,11 +27,12 @@ const ArbitroDashboard = () => {
   const [isAvailable, setIsAvailable] = useState(true); // This could be synced with DB
 
   // Filter matches
-  const pendingMatches = matches?.filter((m) => m.status === "pendente") || [];
+  const pendingMatches = matches?.filter((m) => m.status === "confirmed") || [];
+  const waitingPaymentMatches = matches?.filter((m) => m.status === "waiting_payment") || [];
   
-  // Upcoming: accepted, on the way, in progress
+  // Upcoming: ready, in progress
   const upcomingMatches = matches?.filter(
-    (m) => ["aceita", "a_caminho", "em_andamento"].includes(m.status)
+    (m) => ["ready", "in_progress"].includes(m.status)
   ).sort(
     (a, b) => new Date(`${a.date}T${a.time}`).getTime() - new Date(`${b.date}T${b.time}`).getTime()
   ) || [];
@@ -59,8 +60,7 @@ const ArbitroDashboard = () => {
   // Handle Accept/Decline
   const handleMatchAction = async (matchId: string, action: 'aceitar' | 'recusar') => {
     try {
-      // Ajuste: status 'cancelada' em vez de 'recusada' conforme definição do banco
-      const newStatus = action === 'aceitar' ? 'aceita' : 'cancelada';
+      const newStatus = action === 'aceitar' ? 'ready' : 'cancelada';
       
       const { error } = await (supabase
         .from('matches') as any)
@@ -175,7 +175,7 @@ const ArbitroDashboard = () => {
                 <div className="h-32 w-full relative">
                   <div className="w-full h-full bg-slate-900 flex items-center justify-center overflow-hidden">
                       {/* Using a darker map/stadium placeholder for contrast */}
-                      <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1522778119026-d647f0565c6a?q=80&w=1000&auto=format&fit=crop')] bg-cover bg-center opacity-40 group-hover:scale-105 transition-transform duration-700"></div>
+                      <div className="absolute inset-0 bg-[url('/assets/dashboard-bg.jpg')] bg-cover bg-center opacity-40 group-hover:scale-105 transition-transform duration-700"></div>
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/20 to-transparent"></div>
                   <div className="absolute bottom-3 left-4 flex items-center gap-2">
@@ -213,6 +213,51 @@ const ArbitroDashboard = () => {
                  <p className="text-sm text-muted-foreground">Nenhuma escala próxima.</p>
               </div>
             )}
+          </section>
+
+          {/* Waiting Payment */}
+          <section>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold flex items-center gap-2 font-display">
+                <Bell size={20} className="text-yellow-500" />
+                Aguardando Pagamento
+              </h3>
+              {waitingPaymentMatches.length > 0 && (
+                <span className="bg-yellow-500/10 text-yellow-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                  {waitingPaymentMatches.length} aguardando
+                </span>
+              )}
+            </div>
+            <div className="space-y-4">
+              {waitingPaymentMatches.length === 0 ? (
+                 <div className="bg-card/50 rounded-xl p-6 text-center border border-border/50">
+                    <p className="text-sm text-muted-foreground">Nenhuma partida aguardando pagamento.</p>
+                 </div>
+              ) : (
+                waitingPaymentMatches.map((match) => (
+                  <div key={match.id} className="bg-card p-4 rounded-xl border-l-4 border-l-yellow-500 border-y border-r border-border shadow-sm hover:shadow-md transition-all">
+                    <div className="flex justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="bg-yellow-500/10 text-yellow-700 text-[10px] font-bold px-2 py-1 rounded uppercase">
+                          {match.modality}
+                        </span>
+                        <span className="text-xs text-muted-foreground flex items-center gap-1">
+                           {format(new Date(match.date), 'EEE, dd MMM', { locale: ptBR })} • {match.time.slice(0, 5)}
+                        </span>
+                      </div>
+                      <span className="text-yellow-700 font-bold text-sm bg-yellow-500/10 px-2 py-0.5 rounded">R$ {match.price}</span>
+                    </div>
+                    <h4 className="font-semibold text-foreground mb-1 text-base">
+                      {match.contractor?.full_name || "Contratante"}
+                    </h4>
+                    <p className="text-xs text-muted-foreground mb-4 flex items-center gap-1">
+                      <MapPin size={12} />
+                      {match.location}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
           </section>
 
           {/* Pending Invites */}

@@ -1,3 +1,9 @@
+declare const Deno: {
+  env: {
+    get(name: string): string | undefined
+  }
+}
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -6,16 +12,25 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-serve(async (req) => {
+serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
-  const MP_WEBHOOK_SECRET = "07170624dedb9ee8e8faeb3dfa0e673b7e36a90cb1871f85d7addef9e93543c9"
+  const MP_WEBHOOK_SECRET = Deno.env.get('MP_WEBHOOK_SECRET')
+  const MP_ACCESS_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')
+
+  if (!MP_WEBHOOK_SECRET || !MP_ACCESS_TOKEN) {
+    console.error('Missing Mercado Pago environment variables')
+    return new Response(JSON.stringify({ error: 'Server configuration error' }), { 
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500
+    })
+  }
 
   try {
     const rawBody = await req.text()
     const signatureHeader = req.headers.get('x-signature') || ''
     
-    console.log("--- NOVA NOTIFICAÇÃO ---")
+    console.log("--- NOVA NOTIFICAÇÃO DO MERCADO PAGO ---")
     console.log("Headers:", JSON.stringify(Object.fromEntries(req.headers.entries()), null, 2))
     console.log("Body:", rawBody)
 
@@ -27,12 +42,20 @@ serve(async (req) => {
 
     console.log(`PaymentId detectado: ${paymentId}, Topic detectado: ${topic}`)
 
+    if (!paymentId || !topic) {
+      console.warn("Notificação inválida: paymentId ou topic ausentes")
+      return new Response(JSON.stringify({ received: true, invalid: true }), { 
+        headers: { ...corsHeaders, "Content-Type": "application/json" }, 
+        status: 200 
+      })
+    }
+
     // 1. Validação da Assinatura (Segurança) - Opcional se falhar para testes
     if (signatureHeader && paymentId) {
       try {
         const parts = signatureHeader.split(',')
         let ts = '', v1 = ''
-        parts.forEach(part => {
+        parts.forEach((part: string) => {
           const [key, value] = part.split('=')
           if (key === 'ts') ts = value
           if (key === 'v1') v1 = value
@@ -59,18 +82,15 @@ serve(async (req) => {
           console.log("Assinatura validada com sucesso!")
         }
       } catch (sigError) {
-        console.error("Erro ao validar assinatura:", sigError.message)
+        console.error("Erro ao validar assinatura:", (sigError as Error).message)
       }
     }
 
     if (topic === 'payment' && paymentId) {
-      const token = "APP_USR-1285414236511355-031209-aa88a89e5d6b43b106cf09aeed981b97-3260578791"
-
-      console.log(`Buscando detalhes do pagamento ${paymentId} no Mercado Pago...`)
 
       // 1. Busca o status real do pagamento na API do Mercado Pago
       const mpRes = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: { "Authorization": `Bearer ${MP_ACCESS_TOKEN}` }
       })
       
       if (!mpRes.ok) {
@@ -84,15 +104,15 @@ serve(async (req) => {
       console.log("Status final no MP:", paymentData.status)
 
       if (paymentData.status === 'approved') {
-        const matchId = paymentData.external_reference
-        console.log(`Pagamento APROVADO. Tentando atualizar partida ID: "${matchId}"`)
+        const rawReference = paymentData.external_reference || ''
+        const matchId = rawReference.replace(/^match_/, '').trim()
+        console.log(`Pagamento APROVADO. Tentando atualizar partida ID: "${matchId}"`)        
 
         if (!matchId) {
           console.error("ERRO: external_reference está vazio no objeto de pagamento do MP!")
           throw new Error("Missing external_reference")
         }
 
-        // 2. Conecta ao Supabase
         const supabaseUrl = Deno.env.get('SUPABASE_URL')
         const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
         
@@ -103,10 +123,29 @@ serve(async (req) => {
 
         const supabase = createClient(supabaseUrl, supabaseKey)
 
-        // 3. Atualiza a partida
+        // Verificar se a partida já foi processada
+        const { data: existingMatch, error: fetchError } = await supabase
+          .from('matches')
+          .select('status')
+          .eq('id', matchId)
+          .single()
+
+        if (fetchError) {
+          console.error("Erro ao buscar partida existente:", fetchError)
+          throw fetchError
+        }
+
+        if (existingMatch?.status === 'confirmed') {
+          console.log(`Partida ${matchId} já foi processada anteriormente. Ignorando.`)
+          return new Response(JSON.stringify({ received: true, already_processed: true }), { 
+            headers: { ...corsHeaders, "Content-Type": "application/json" }, 
+            status: 200 
+          })
+        }
+
         const { data: updateData, error: updateError } = await supabase
           .from('matches')
-          .update({ status: 'pendente' })
+          .update({ status: 'confirmed' })
           .eq('id', matchId)
           .select()
 
@@ -118,13 +157,43 @@ serve(async (req) => {
         if (!updateData || updateData.length === 0) {
           console.warn(`AVISO: Nenhuma linha foi alterada no banco para o ID "${matchId}". Verifique se o ID existe na tabela 'matches'.`)
         } else {
-          console.log(`SUCESSO TOTAL: Partida ${matchId} atualizada para 'pendente'!`, updateData[0])
+          console.log(`SUCESSO TOTAL: Partida ${matchId} atualizada para 'confirmed'!`, updateData[0])
+        }
+      } else if (paymentData.status === 'rejected' || paymentData.status === 'cancelled') {
+        const rawReference = paymentData.external_reference || ''
+        const matchId = rawReference.replace(/^match_/, '').trim()
+        
+        if (matchId) {
+          console.log(`Pagamento falhou (${paymentData.status}). Cancelando partida ID: "${matchId}"`)
+          
+          const supabaseUrl = Deno.env.get('SUPABASE_URL')
+          const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+          
+          if (supabaseUrl && supabaseKey) {
+            const supabase = createClient(supabaseUrl, supabaseKey)
+            
+            const { data: updateData, error: updateError } = await supabase
+              .from('matches')
+              .update({ status: 'cancelada' })
+              .eq('id', matchId)
+              .select()
+
+            if (updateError) {
+              console.error("Erro ao cancelar partida:", updateError)
+            } else if (updateData && updateData.length > 0) {
+              console.log(`Partida ${matchId} cancelada com sucesso devido ao pagamento falhado`)
+            }
+          } else {
+            console.error("Variáveis de ambiente do Supabase não encontradas para cancelamento")
+          }
+        } else {
+          console.warn("Pagamento falhou mas external_reference não encontrado")
         }
       } else {
         console.log(`Pagamento ainda não aprovado (status: ${paymentData.status}). Ignorando atualização.`)
       }
     } else {
-      console.log("Notificação ignorada (não é um tópico de pagamento ou ID ausente).")
+      console.log(`Notificação ignorada (topic: ${topic}, paymentId: ${paymentId})`)
     }
 
     return new Response(JSON.stringify({ received: true }), { 
@@ -133,10 +202,10 @@ serve(async (req) => {
     })
 
   } catch (err) {
-    console.error("ERRO CRÍTICO NO WEBHOOK:", err.message)
-    return new Response(JSON.stringify({ error: err.message }), { 
+    console.error("ERRO CRÍTICO NO WEBHOOK:", (err as Error).message)
+    return new Response(JSON.stringify({ error: (err as Error).message }), { 
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 400 
+      status: 400
     })
   }
 })

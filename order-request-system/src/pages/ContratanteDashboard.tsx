@@ -79,7 +79,13 @@ const ContratanteDashboard = () => {
                 return (
                   <div
                     key={c.id}
-                    onClick={() => navigate(`/partida/${c.id}`)}
+                    onClick={() => {
+                      if (c.status === 'pending' || c.status === 'waiting_payment') {
+                        navigate(`/payment/${c.id}`);
+                      } else {
+                        navigate(`/partida/${c.id}`);
+                      }
+                    }}
                     className="rounded-2xl bg-slate-900/60 border border-slate-800 p-4 cursor-pointer hover:border-blue-500/40 hover:bg-slate-900/70 transition-colors shadow-sm"
                   >
                     <div className="flex items-center justify-between mb-2">
@@ -114,7 +120,7 @@ const ContratanteDashboard = () => {
             <h2 className="font-display text-lg font-semibold text-foreground">Recomendados</h2>
             <button onClick={() => navigate("/busca")} className="text-xs font-medium text-blue-600 hover:underline">Ver todos</button>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-2">
             {recommendedReferees.map((a) => (
               <ArbitroCard key={a.id} arbitro={a} />
             ))}

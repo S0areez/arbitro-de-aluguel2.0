@@ -18,6 +18,7 @@ serve(async (req: any) => {
     }
 
     const token = "APP_USR-1285414236511355-031209-aa88a89e5d6b43b106cf09aeed981b97-3260578791";
+    const projectUrl = Deno.env.get("SUPABASE_URL") || "https://uhwuazxxrfoljbqqrmnu.supabase.co";
 
     const mpBody = {
       items: [
@@ -33,14 +34,12 @@ serve(async (req: any) => {
         email: "test_user_123@testuser.com" 
       },
       back_urls: {
-        // Tente usar uma URL que o MP aceite melhor, 
-        // ou coloque a URL final do seu projeto se já tiver feito deploy (Vercel/Netlify)
         success: "http://localhost:8080/carteira",
         failure: "http://localhost:8080/carteira",
         pending: "http://localhost:8080/carteira"
       },
-      // DESATIVE ESTA LINHA ABAIXO para parar o erro 400
-      // auto_return: "approved", 
+      notification_url: `${projectUrl}/functions/v1/mp-webhook`,
+      auto_return: "approved",
       external_reference: String(reservaId),
     };
 

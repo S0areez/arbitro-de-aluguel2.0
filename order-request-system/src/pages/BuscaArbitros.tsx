@@ -28,7 +28,6 @@ const BuscaArbitros = () => {
   const [filtroEquipamento, setFiltroEquipamento] = useState<string[]>([]);
   const [date, setDate] = useState<Date>();
   const [showFilters, setShowFilters] = useState(false);
-  const [precoMax, setPrecoMax] = useState(200);
 
   const { data: referees, isLoading } = useReferees();
 
@@ -40,7 +39,6 @@ const BuscaArbitros = () => {
         const hasAll = filtroEquipamento.every(req => a.equipment?.includes(req));
         if (!hasAll) return false;
     }
-    if ((a.hourly_rate || 0) > precoMax) return false;
     
     // Check availability
     if (date && a.unavailable_dates) {
@@ -156,19 +154,6 @@ const BuscaArbitros = () => {
                   </button>
                 ))}
               </div>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-muted-foreground mb-2 block">
-                Preço máximo: <span className="text-cyan-500">R$ {precoMax}/h</span>
-              </label>
-              <input
-                type="range"
-                min={50}
-                max={200}
-                value={precoMax}
-                onChange={(e) => setPrecoMax(Number(e.target.value))}
-                className="w-full accent-cyan-500"
-              />
             </div>
           </div>
         )}
