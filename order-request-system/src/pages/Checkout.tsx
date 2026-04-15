@@ -13,9 +13,6 @@ type PaymentMethod = Database["public"]["Tables"]["matches"]["Row"]["payment_met
 
 import { supabase } from "@/integrations/supabase/client";
 
-import { usePricing } from "@/hooks/usePricing";
-import { Skeleton } from "@/components/ui/skeleton";
-
 const Checkout = () => {
   const { arbitroId } = useParams();
   const navigate = useNavigate();
@@ -30,13 +27,9 @@ const Checkout = () => {
   const [duration, setDuration] = useState(1);
   const [local, setLocal] = useState("");
   const [modalidade, setModalidade] = useState("");
-  const [matchDifficulty, setMatchDifficulty] = useState<"amistoso" | "campeonato" | "final">("amistoso");
   const [pagamento, setPagamento] = useState<PaymentMethod>("pix");
   const [splitCount, setSplitCount] = useState(1);
   const [isChecking, setIsChecking] = useState(false);
-
-  // Hook de Precificação Dinâmica via Edge Function
-  const { data: pricingData, isLoading: isPricingLoading } = usePricing(arbitroId, matchDifficulty);
 
   if (isLoading) {
     return (
@@ -61,11 +54,15 @@ const Checkout = () => {
 
   const hourlyRate = arbitro.hourly_rate || 0;
   
-  // Usar o preço da Edge Function se disponível, senão fallback para o cálculo local
-  const valorTotal = pricingData ? parseFloat(pricingData.price) : (hourlyRate * duration);
-  const platformFee = pricingData ? (valorTotal * 0.1) : (valorTotal * 0.1); // Exemplo de taxa
-  const isSurge = pricingData ? (pricingData.details.level_multiplier > 1 || pricingData.details.difficulty_multiplier > 1) : false;
+  // Dynamic Pricing Calculation
+  const { totalPrice, platformFee, isSurge, feePercentage } = calculateMatchPrice(
+    hourlyRate, 
+    duration, 
+    data, 
+    horario
+  );
   
+  const valorTotal = totalPrice;
   const valorPorPessoa = splitCount > 1 ? (valorTotal / splitCount).toFixed(2) : null;
 
   const pagamentoOptions: { id: PaymentMethod; icon: typeof Smartphone; label: string }[] = [
@@ -210,25 +207,6 @@ const Checkout = () => {
               )) || <option value="Futebol">Futebol</option>}
             </select>
           </div>
-          <div>
-            <label className="text-xs font-medium text-muted-foreground mb-1.5 block">Tipo de Partida</label>
-            <div className="grid grid-cols-3 gap-2">
-              {(['amistoso', 'campeonato', 'final'] as const).map((diff) => (
-                <button
-                  key={diff}
-                  type="button"
-                  onClick={() => setMatchDifficulty(diff)}
-                  className={`rounded-xl border py-2 text-xs font-medium transition-colors ${
-                    matchDifficulty === diff 
-                      ? "border-primary bg-primary/10 text-primary" 
-                      : "border-border bg-card text-muted-foreground"
-                  }`}
-                >
-                  {diff.charAt(0).toUpperCase() + diff.slice(1)}
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
 
         {/* Pagamento */}
@@ -273,69 +251,28 @@ const Checkout = () => {
           )}
         </div>
 
-        {/* Resumo de Custos - Dark Premium */}
-        <div className="rounded-2xl border border-[#2A2D33] bg-[#141619] p-5 space-y-4 shadow-xl">
-          <div className="flex items-center justify-between border-b border-[#2A2D33] pb-3">
-            <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-              <Info size={16} className="text-blue-400" />
-              Resumo de Custos
-            </h3>
-            {isPricingLoading && <div className="animate-pulse h-4 w-20 bg-slate-800 rounded"></div>}
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex justify-between text-xs text-slate-400">
-              <span>Subtotal ({pricingData?.details.level || 'Nível'} x {duration}h)</span>
-              {isPricingLoading ? (
-                <Skeleton className="h-4 w-16 bg-slate-800" />
-              ) : (
-                <span className="text-slate-200">R$ {pricingData?.details.subtotal || (hourlyRate * duration).toFixed(2)}</span>
-              )}
+        {/* Total + CTA */}
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-4 space-y-2">
+          {isSurge && (
+            <div className="flex items-center gap-2 text-xs text-amber-600 bg-amber-100 p-2 rounded-lg border border-amber-200">
+              <TrendingUp size={14} />
+              <span>Alta demanda: Tarifa dinâmica de +{(feePercentage * 100).toFixed(0)}% aplicada.</span>
             </div>
-
-            <div className="flex justify-between text-xs text-slate-400">
-              <span className="flex items-center gap-1">
-                Adicional de Dificuldade
-                {pricingData?.details.difficulty_multiplier && pricingData.details.difficulty_multiplier > 1 && (
-                  <span className="text-[10px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20">
-                    +{((pricingData.details.difficulty_multiplier - 1) * 100).toFixed(0)}%
-                  </span>
-                )}
-              </span>
-              {isPricingLoading ? (
-                <Skeleton className="h-4 w-12 bg-slate-800" />
-              ) : (
-                <span className="text-slate-200">
-                  {pricingData?.details.difficulty_multiplier && pricingData.details.difficulty_multiplier > 1 
-                    ? `+ R$ ${(parseFloat(pricingData.details.subtotal) - (parseFloat(pricingData.details.subtotal) / pricingData.details.difficulty_multiplier)).toFixed(2)}`
-                    : "R$ 0,00"}
+          )}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Total</span>
+            <div className="text-right">
+              {isSurge && (
+                <span className="block text-xs text-muted-foreground line-through">
+                  R$ {(hourlyRate * duration).toFixed(2)}
                 </span>
               )}
-            </div>
-
-            <div className="flex justify-between text-xs text-slate-400">
-              <span>Taxa de Deslocamento</span>
-              {isPricingLoading ? (
-                <Skeleton className="h-4 w-12 bg-slate-800" />
-              ) : (
-                <span className="text-slate-200">R$ {pricingData?.details.taxa_deslocamento || "10.00"}</span>
-              )}
-            </div>
-
-            <div className="pt-3 border-t border-[#2A2D33] flex items-center justify-between">
-              <span className="text-sm font-bold text-slate-100">Total Final</span>
-              {isPricingLoading ? (
-                <Skeleton className="h-8 w-24 bg-slate-800" />
-              ) : (
-                <span className="text-2xl font-black text-[#E8C547]">
-                  R$ {valorTotal.toFixed(2)}
-                </span>
-              )}
+              <span className="text-2xl font-bold text-primary">R$ {valorTotal.toFixed(2)}</span>
             </div>
           </div>
         </div>
 
-        <Button onClick={handleConfirm} disabled={createMatch.isPending || isChecking || isPricingLoading} className="w-full h-12 text-base font-bold rounded-xl shadow-lg shadow-primary/20">
+        <Button onClick={handleConfirm} disabled={createMatch.isPending || isChecking} className="w-full h-12 text-base font-bold rounded-xl">
           {createMatch.isPending || isChecking ? "Processando..." : "Confirmar Contratação"}
         </Button>
       </div>
