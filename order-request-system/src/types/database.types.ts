@@ -38,8 +38,6 @@ export interface Database {
           rating_avg: number
           created_at: string
           updated_at: string
-          current_lat: number | null
-          current_lng: number | null
         }
         Insert: {
           id: string
@@ -69,8 +67,6 @@ export interface Database {
           rating_avg?: number
           created_at?: string
           updated_at?: string
-          current_lat?: number | null
-          current_lng?: number | null
         }
         Update: {
           id?: string
@@ -99,8 +95,6 @@ export interface Database {
           rating_avg?: number
           created_at?: string
           updated_at?: string
-          current_lat?: number | null
-          current_lng?: number | null
         }
       }
       matches: {
@@ -113,17 +107,13 @@ export interface Database {
           location: string
           modality: string
           price: number
-          status: 'pending' | 'waiting_payment' | 'confirmed' | 'ready' | 'in_progress' | 'completed' | 'escrow_retained' | 'active' | 'pendente' | 'aceita' | 'a_caminho' | 'em_andamento' | 'finalizada' | 'cancelada'
+          status: 'pendente' | 'aceita' | 'a_caminho' | 'em_andamento' | 'finalizada' | 'cancelada'
           payment_method: 'pix' | 'cartao' | 'saldo'
           contractor_checkin: boolean
           referee_checkin: boolean
           duration: number
           platform_fee: number
           is_surge: boolean
-          referee_lat: number | null
-          referee_lng: number | null
-          contractor_lat: number | null
-          contractor_lng: number | null
           created_at: string
           updated_at: string
         }
@@ -136,17 +126,13 @@ export interface Database {
           location: string
           modality: string
           price: number
-          status?: 'pending' | 'waiting_payment' | 'confirmed' | 'ready' | 'in_progress' | 'completed' | 'escrow_retained' | 'active' | 'pendente' | 'aceita' | 'a_caminho' | 'em_andamento' | 'finalizada' | 'cancelada'
+          status?: 'pendente' | 'aceita' | 'a_caminho' | 'em_andamento' | 'finalizada' | 'cancelada'
           payment_method?: 'pix' | 'cartao' | 'saldo'
           contractor_checkin?: boolean
           referee_checkin?: boolean
           duration?: number
           platform_fee?: number
           is_surge?: boolean
-          referee_lat?: number | null
-          referee_lng?: number | null
-          contractor_lat?: number | null
-          contractor_lng?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -159,17 +145,11 @@ export interface Database {
           location?: string
           modality?: string
           price?: number
-          status?: 'pending' | 'waiting_payment' | 'confirmed' | 'ready' | 'in_progress' | 'completed' | 'escrow_retained' | 'active' | 'pendente' | 'aceita' | 'a_caminho' | 'em_andamento' | 'finalizada' | 'cancelada'
+          status?: 'pendente' | 'aceita' | 'a_caminho' | 'em_andamento' | 'finalizada' | 'cancelada'
           payment_method?: 'pix' | 'cartao' | 'saldo'
           contractor_checkin?: boolean
           referee_checkin?: boolean
           duration?: number
-          platform_fee?: number
-          is_surge?: boolean
-          referee_lat?: number | null
-          referee_lng?: number | null
-          contractor_lat?: number | null
-          contractor_lng?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -266,7 +246,6 @@ export interface Database {
           id: string
           reserva_id: string
           user_id: string
-          owner_id?: string | null
           status: 'pending' | 'approved' | 'rejected'
           amount: number
           external_reference: string | null
@@ -275,7 +254,7 @@ export interface Database {
         Insert: {
           id?: string
           reserva_id: string
-          owner_id?: string | null
+          user_id: string
           status: 'pending' | 'approved' | 'rejected'
           amount: number
           external_reference?: string | null
@@ -284,7 +263,7 @@ export interface Database {
         Update: {
           id?: string
           reserva_id?: string
-          owner_id?: string | null
+          user_id?: string
           status?: 'pending' | 'approved' | 'rejected'
           amount?: number
           external_reference?: string | null

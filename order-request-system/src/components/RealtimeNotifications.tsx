@@ -27,7 +27,7 @@ export const RealtimeNotifications = () => {
           const newRow = payload.new as Partial<MatchRow> | null;
           if (!oldRow || !newRow) return;
 
-          if (oldRow.status !== "ready" && newRow.status === "ready") {
+          if (oldRow.status !== "aceita" && newRow.status === "aceita") {
             const when = newRow.date && newRow.time ? `${newRow.date} ${newRow.time}` : "";
             toast.success(
               `Árbitro aceitou sua partida`,

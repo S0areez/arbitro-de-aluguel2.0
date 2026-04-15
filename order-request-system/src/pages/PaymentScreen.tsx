@@ -15,29 +15,15 @@ const PaymentScreen = () => {
   const [loadingPayment, setLoadingPayment] = useState(false);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const checkoutStorageKey = `checkout-url-${matchId}`;
 
+  // Se já tiver pago (status != cancelada && status != pendente), redireciona
+  // Nota: Agora criamos a partida como 'cancelada' (significando 'aguardando pagamento').
+  // Se mudar para 'pendente' ou qualquer outro, é sinal de que pagou.
   useEffect(() => {
-    if (!match || !matchId) return;
-    if (!['cancelada', 'pending', 'waiting_payment'].includes(match.status)) {
+    if (match && match.status !== 'cancelada' && match.status !== 'pendente') {
       navigate(`/partida/${match.id}`);
     }
   }, [match, navigate]);
-
-  useEffect(() => {
-    if (!matchId) return;
-    const savedUrl = localStorage.getItem(checkoutStorageKey);
-    if (savedUrl) setCheckoutUrl(savedUrl);
-  }, [matchId, checkoutStorageKey]);
-
-  useEffect(() => {
-    if (!matchId) return;
-    if (checkoutUrl) {
-      localStorage.setItem(checkoutStorageKey, checkoutUrl);
-    } else {
-      localStorage.removeItem(checkoutStorageKey);
-    }
-  }, [checkoutUrl, matchId, checkoutStorageKey]);
 
   // Escuta mudanças na tabela 'matches' via Realtime do Supabase
   useEffect(() => {
@@ -57,7 +43,7 @@ const PaymentScreen = () => {
         },
         (payload) => {
           console.log("Mudança detectada via Realtime:", payload);
-          if (['confirmed', 'ready', 'in_progress', 'completed'].includes(payload.new.status)) {
+          if (payload.new.status === 'pendente') {
             toast.success("Pagamento confirmado!");
             navigate(`/partida/${matchId}`);
           }
@@ -100,9 +86,6 @@ const PaymentScreen = () => {
 
     if (data?.checkoutUrl) {
       setCheckoutUrl(data.checkoutUrl);
-      await (supabase.from('matches') as any)
-        .update({ status: 'waiting_payment' })
-        .eq('id', match.id);
       // Opcional: Redirecionar automaticamente
       // window.location.href = data.checkoutUrl;
     } else {
@@ -115,11 +98,8 @@ const PaymentScreen = () => {
       
       // MOCK FALLBACK (Para testes locais sem Edge Function)
       toast.warning("Modo de teste: Simulando link de pagamento...");
-      setTimeout(async () => {
+      setTimeout(() => {
         setCheckoutUrl("https://mercadopago.com.br/checkout/sample-link-mock");
-        await (supabase.from('matches') as any)
-          .update({ status: 'waiting_payment' })
-          .eq('id', match.id);
         setLoadingPayment(false);
       }, 1500);
       return;
@@ -140,8 +120,8 @@ const PaymentScreen = () => {
         .eq('reserva_id', match.id);
       
       await (supabase.from('matches') as any)
-        .update({ status: 'confirmed' })
-        .eq('id', match.id);
+        .update({ status: 'pendente' })
+        .eq('id', match.id); 
       
       toast.dismiss();
       toast.success("Pagamento confirmado! Aguardando aceite do árbitro.");
@@ -200,7 +180,6 @@ const PaymentScreen = () => {
             <div className="text-left text-xs space-y-2">
               <p><span className="text-muted-foreground">Modalidade:</span> <span className="font-medium capitalize">{match.modality.replace('_', ' ')}</span></p>
               <p><span className="text-muted-foreground">Data:</span> <span className="font-medium">{new Date(match.date).toLocaleDateString()} às {match.time.slice(0,5)}</span></p>
-              <p className="text-xs text-slate-500">Valor retido em Escrow até o término da partida.</p>
             </div>
           </div>
 

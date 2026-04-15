@@ -1,63 +1,10 @@
-// Fixed pricing table for the platform
-const FIXED_PRICES: Record<string, Record<number, number>> = {
-  'futsal 5x5': {
-    1: 38.21,
-    1.15: 47.76,
-    1.3: 57.31,
-    1.45: 66.87,
-    2: 76.42
-  },
-  'society 6x6/7x7': {
-    1: 41.99,
-    1.15: 52.49,
-    1.3: 62.98,
-    1.45: 73.48,
-    2: 83.98
-  },
-  'campo 11x11': {
-    1: 45.77,
-    1.15: 57.21,
-    1.3: 68.65,
-    1.45: 80.10,
-    2: 91.54
-  }
-};
-
 export const calculateMatchPrice = (
-  modality: string,
+  hourlyRate: number,
   duration: number,
   dateStr: string,
   timeStr: string
 ) => {
-  // Normalize modality name
-  const normalizedModality = modality.toLowerCase().trim();
-
-  // Find the matching category
-  let categoryKey = '';
-  if (normalizedModality.includes('futsal') || normalizedModality.includes('5x5')) {
-    categoryKey = 'futsal 5x5';
-  } else if (normalizedModality.includes('society') || normalizedModality.includes('6x6') || normalizedModality.includes('7x7')) {
-    categoryKey = 'society 6x6/7x7';
-  } else if (normalizedModality.includes('campo') || normalizedModality.includes('11x11')) {
-    categoryKey = 'campo 11x11';
-  } else {
-    // Default to futsal 5x5 if no match
-    categoryKey = 'futsal 5x5';
-  }
-
-  // Get the fixed price for the duration, or interpolate if needed
-  const categoryPrices = FIXED_PRICES[categoryKey];
-  let basePrice = categoryPrices[duration];
-
-  // If exact duration not found, find the closest
-  if (!basePrice) {
-    const availableDurations = Object.keys(categoryPrices).map(Number).sort((a, b) => a - b);
-    const closestDuration = availableDurations.reduce((prev, curr) =>
-      Math.abs(curr - duration) < Math.abs(prev - duration) ? curr : prev
-    );
-    basePrice = categoryPrices[closestDuration];
-  }
-
+  const basePrice = hourlyRate * duration;
   let feePercentage = 0;
   let isSurge = false;
 
@@ -74,6 +21,8 @@ export const calculateMatchPrice = (
 
   try {
     // Create date object to check day of week and time
+    // Note: This uses local browser time. For a real app, timezone handling is crucial.
+    // Assuming the user is in the same timezone as the intended match for now.
     const date = new Date(`${dateStr}T${timeStr}`);
     const day = date.getDay(); // 0 is Sunday, 6 is Saturday
     const hour = date.getHours();

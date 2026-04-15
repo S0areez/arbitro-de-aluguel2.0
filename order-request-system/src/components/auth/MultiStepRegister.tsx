@@ -440,7 +440,7 @@ export function MultiStepRegister({ role, onComplete, onCancel }: MultiStepRegis
             className="space-y-6"
           >
             <div className="text-center relative rounded-xl overflow-hidden mb-6 py-8 px-4 bg-gradient-to-br from-primary/90 to-primary/70 text-white shadow-lg">
-              <div className="absolute inset-0 bg-[url('/assets/register-bg.jpg')] opacity-20 bg-cover bg-center mix-blend-overlay"></div>
+              <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1579952363873-27f3bade9f55?q=80&w=1000&auto=format&fit=crop')] opacity-20 bg-cover bg-center mix-blend-overlay"></div>
               <ShieldCheck className="w-12 h-12 mx-auto mb-3 text-white" />
               <h2 className="text-2xl font-bold font-display">Verificação de Segurança</h2>
               <p className="text-white/90 text-sm mt-1">

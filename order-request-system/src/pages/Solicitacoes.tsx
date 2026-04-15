@@ -13,12 +13,11 @@ const Solicitacoes = () => {
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   ) || [];
 
-  const confirmadas = sortedMatches.filter((c) => c.status === "confirmed");
-  const pagamentoPendente = sortedMatches.filter((c) => c.status === "waiting_payment" || c.status === "pending");
-  const outras = sortedMatches.filter((c) => c.status !== "confirmed" && c.status !== "waiting_payment" && c.status !== "pending");
+  const pendentes = sortedMatches.filter((c) => c.status === "pendente");
+  const outras = sortedMatches.filter((c) => c.status !== "pendente");
 
   const handleAceitar = (id: string) => {
-    updateMatch.mutate({ id, updates: { status: "ready" } });
+    updateMatch.mutate({ id, updates: { status: "aceita" } });
   };
 
   const handleRecusar = (id: string) => {
@@ -40,46 +39,12 @@ const Solicitacoes = () => {
       <div className="px-4 pt-6 space-y-6">
         <h1 className="font-display text-2xl font-bold text-foreground">Solicitações</h1>
 
-        {pagamentoPendente.length > 0 && (
+        {/* Pendentes */}
+        {pendentes.length > 0 && (
           <section>
-            <h2 className="text-sm font-medium text-yellow-400 mb-3">Aguardando Pagamento ({pagamentoPendente.length})</h2>
+            <h2 className="text-sm font-medium text-primary mb-3">Pendentes ({pendentes.length})</h2>
             <div className="space-y-3">
-              {pagamentoPendente.map((c) => (
-                <div key={c.id} className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="font-semibold text-foreground">{c.modality}</span>
-                    <span className="text-lg font-bold text-foreground">R$ {c.price}</span>
-                  </div>
-                  <div className="space-y-1.5 text-xs text-muted-foreground mb-4">
-                    <div className="flex items-center gap-1.5">
-                      <CalendarDays size={12} />
-                      {new Date(c.date).toLocaleDateString()} às {c.time.slice(0, 5)}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <MapPin size={12} />
-                      {c.location}
-                    </div>
-                    {c.contractor && (
-                      <div className="flex items-center gap-1.5">
-                        <User size={12} />
-                        {c.contractor.full_name || "Contratante"}
-                      </div>
-                    )}
-                  </div>
-                  <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-3 text-xs text-yellow-900">
-                    Pagamento ainda não concluído. Você verá a solicitação para aceitar/recusar quando o status for confirmado.
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {confirmadas.length > 0 && (
-          <section>
-            <h2 className="text-sm font-medium text-primary mb-3">Prontas para Aceitar ({confirmadas.length})</h2>
-            <div className="space-y-3">
-              {confirmadas.map((c) => (
+              {pendentes.map((c) => (
                 <div key={c.id} className="rounded-xl border border-primary/30 bg-card p-4">
                   <div className="flex items-center justify-between mb-3">
                     <span className="font-semibold text-foreground">{c.modality}</span>
@@ -148,7 +113,7 @@ const Solicitacoes = () => {
                 )}
               </div>
             ))}
-            {outras.length === 0 && confirmadas.length === 0 && pagamentoPendente.length === 0 && (
+            {outras.length === 0 && pendentes.length === 0 && (
                 <p className="text-sm text-muted-foreground">Nenhuma solicitação encontrada.</p>
             )}
           </div>
