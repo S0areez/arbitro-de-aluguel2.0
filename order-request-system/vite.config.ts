@@ -7,7 +7,6 @@ import { VitePWA } from "vite-plugin-pwa";
 // https://vitejs.dev/config/
 
 export default defineConfig(({ mode }) => ({
-  base: "/",
   server: {
     host: "::",
     port: 8080,
@@ -15,17 +14,6 @@ export default defineConfig(({ mode }) => ({
     allowedHosts: true, 
     hmr: {
       overlay: false,
-    },
-  },
-  build: {
-    assetsDir: "assets",
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          vendor: ["react", "react-dom", "react-router-dom", "@supabase/supabase-js", "@tanstack/react-query"],
-          ui: ["lucide-react", "framer-motion", "clsx", "tailwind-merge"],
-        },
-      },
     },
   },
   plugins: [
